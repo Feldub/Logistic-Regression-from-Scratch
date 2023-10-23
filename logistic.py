@@ -12,6 +12,13 @@ class CustomLogisticRegression:
         self.n_epoch = n_epoch
         self.coef_ = None
 
+    @staticmethod
+    def add_bias(X):
+        X_ = X.copy()
+        bias_col = np.ones(X_.shape[0])
+        X_.insert(0, 'bias', bias_col)
+        return X_
+
     def sigmoid(self, t):
         return 1 / (1 + np.e**(-t))
 
@@ -20,30 +27,39 @@ class CustomLogisticRegression:
         return self.sigmoid(t)
 
     def fit_mse(self, X_train, y_train):
-        X_ = X_train.copy()
         if self.fit_intercept:
-            bias_col = np.ones(X_.shape[0])
-            X_.insert(0, 'bias', bias_col)
+            X_train = self.add_bias(X_train)
 
-        self.coef_ = np.zeros(X_.shape[1])
+        self.coef_ = np.zeros(X_train.shape[1])
         for _ in range(self.n_epoch):
-            for row_index, row in X_.iterrows():
+            for row_index, row in X_train.iterrows():
                 y_hat = self.predict_proba(row, self.coef_)
-                self.coef_ = self.coef_ - (
-                        self.l_rate
-                        * (y_hat - y_train[row_index])
-                        * y_hat
-                        * (1 - y_hat)
-                        * row.values
-                )
+                self.coef_ = (self.coef_ -
+                              self.l_rate
+                              * (y_hat - y_train[row_index])
+                              * y_hat
+                              * (1 - y_hat)
+                              * row.values)
+
+    def fit_log_loss(self, X_train, y_train):
+        if self.fit_intercept:
+            X_train = self.add_bias(X_train)
+
+        self.coef_ = np.zeros(X_train.shape[1])
+        for _ in range(self.n_epoch):
+            for row_index, row in X_train.iterrows():
+                y_hat = self.predict_proba(row, self.coef_)
+                self.coef_ = (self.coef_
+                              - self.l_rate
+                              * (y_hat - y_train[row_index])
+                              * row.values
+                              / X_train.shape[0])
 
     def predict(self, X_test, cut_off=0.5):
-        X_ = X_test.copy()
         if self.fit_intercept:
-            bias_col = np.ones(X_.shape[0])
-            X_.insert(0, 'bias', bias_col)
+            X_test = self.add_bias(X_test)
         predictions = []
-        for _, row in X_.iterrows():
+        for _, row in X_test.iterrows():
             y_hat = self.predict_proba(row, self.coef_)
             predictions.append(int(y_hat >= cut_off))
         return np.array(predictions)
@@ -61,7 +77,7 @@ if __name__ == '__main__':
     lr = CustomLogisticRegression(
         fit_intercept=True, l_rate=0.01, n_epoch=1000
     )
-    lr.fit_mse(X_train, y_train)
+    lr.fit_log_loss(X_train, y_train)
     y_pred = lr.predict(X_test)
     acc_score = accuracy_score(y_test, y_pred)
     print({
